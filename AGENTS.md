@@ -1,0 +1,63 @@
+# Applying this example
+
+Instructions for a coding agent adding A2A Net account linking to an existing web
+app. Read `README.md` first for the flow.
+
+## 1. Add the endpoint
+
+Copy `src/connect.ts` into wherever the app keeps its server code, next to its
+other routes.
+
+Mount `handleConnectRequest` at `POST /agent/connect`, passing the app's own
+session check as `authenticate`. It has to return the app's own identifier for the
+signed-in user — the id the app already uses in its own database — or `null` when
+the request carries no session.
+
+If the app's framework does not use web `Request`/`Response` (Express, Fastify,
+Koa), drop `handleConnectRequest` and call `redeemLinkToken(token, customerId)`
+from a handler written in that framework's own style. `redeemLinkToken` is the
+part that matters; the wrapper is convenience.
+
+Two things this endpoint must not do, because they are the whole security model:
+
+- Do not accept a `customerId` from the request body. The server decides who the
+  caller is; a body-supplied id lets anyone link a chat account to anyone
+- Do not expose the endpoint unauthenticated
+
+## 2. Add the environment variables
+
+`A2ANET_API_KEY` and `A2ANET_API_URL`, as described in `README.md`. Server-side
+only. In a framework that prefixes public variables (`NEXT_PUBLIC_`, `VITE_`),
+neither takes that prefix.
+
+## 3. Add the page
+
+Copy `src/connect-page.tsx` in and route it at `/agent/connect`, so the endpoint
+and the page share a path and the URL is easy to say out loud.
+
+Wire its four props to the app's own auth: `loading` and `isAuthenticated` from
+whatever hook the app already uses, and `signIn(returnTo)` to whatever starts the
+sign-in flow. Read `token` from the query string with the app's own router.
+
+Then restyle it. It renders bare `<main>`, `<h1>` and `<button>` so the states are
+readable; use the app's own layout, logo and components. What must survive the
+restyle:
+
+- The five states, and the wording that sends people back to the chat app. A
+  person on this page came from Slack or Teams and needs to be told to go back
+- The `noindex,nofollow` and `no-referrer` meta tags. The URL carries a token
+- Sign-in starting on arrival rather than behind a second click
+
+If the page cannot post to `/agent/connect` with cookies alone (an auth SDK that
+holds a bearer token), add the header to the `fetch` in `connect`.
+
+## 4. Set the Customer Sign-In URL
+
+On the agent's Publish page at <https://app.a2anet.com>, under **Customer
+Sign-In**, set `https://your-domain.com/agent/connect`. It must be https.
+
+## 5. Check it
+
+Message the agent in Slack or Teams as a user who has never linked. The Connect
+button should appear, the link should sign you in and connect, and the next
+message should get a real answer.
