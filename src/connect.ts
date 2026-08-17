@@ -24,9 +24,8 @@ export type ConnectResult = { connected: true } | { connected: false; reason: Co
 /**
  * Per-customer values the agent's tools resolve at run time.
  *
- * Variables reach the agent's session; secrets never do. Use them to hand the
- * agent this customer's own access to your API, so a run in Slack acts as them
- * rather than as you.
+ * Use them to hand the agent this customer's own access to your API, so a run in
+ * Slack acts as them rather than as you.
  */
 export interface RequestValues {
     variables?: Record<string, string>;
