@@ -35,9 +35,10 @@ neither takes that prefix.
 Copy `src/connect-page.tsx` in and route it at `/agent/connect`, so the endpoint
 and the page share a path and the URL is easy to say out loud.
 
-Wire its four props to the app's own auth: `loading` and `isAuthenticated` from
+Wire its props to the app's own auth: `loading` and `isAuthenticated` from
 whatever hook the app already uses, and `signIn(returnTo)` to whatever starts the
-sign-in flow. Read `token` from the query string with the app's own router.
+sign-in flow. Read `token` and `platform` from the query string with the app's own
+router — A2A Net sends both, so nothing has to decode a token in the browser.
 
 Then restyle it. It renders bare `<main>`, `<h1>` and `<button>` so the states are
 readable; use the app's own layout, logo and components. What must survive the
@@ -53,8 +54,9 @@ holds a bearer token), add the header to the `fetch` in `connect`.
 
 ## 4. Set the Customer Sign-In URL
 
-On the agent's Publish page at <https://app.a2anet.com>, under **Customer
-Sign-In**, set `https://your-domain.com/agent/connect`. It must be https.
+On the agent's Publish page at <https://app.a2anet.com>, in the last step of Slack
+or Teams setup, set `https://app.example.com/agent/connect`. It must be https.
+Until it is set, the agent runs as its owner rather than as your customers.
 
 ## 5. Check it
 

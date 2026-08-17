@@ -16,9 +16,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-/** Which chat app the visitor came from, so the page can tell them where to go back to. */
-type Platform = "Slack" | "Teams" | "Copilot" | "Slack, Teams, or Copilot";
-
 /**
  * Where the visitor is.
  *
@@ -26,35 +23,6 @@ type Platform = "Slack" | "Teams" | "Copilot" | "Slack, Teams, or Copilot";
  * three that are not `failed` all end the same way: go back to the chat app.
  */
 export type ConnectStatus = "ready" | "connected" | "invalid" | "used" | "failed";
-
-const PLATFORM_BY_SURFACE: Record<string, Platform> = {
-    slack: "Slack",
-    teams: "Teams",
-    copilot: "Copilot",
-};
-
-/**
- * Reads the surface out of the link token, to name the app the visitor came from.
- *
- * The token's claims are public — it is signed, not encrypted — and this only
- * decides a noun on screen. Nothing is trusted from it: A2A Net verifies the
- * signature when your backend redeems the token.
- * @param token The `?token=` from the Connect button.
- * @returns The platform, or undefined when the token says nothing useful.
- */
-export function platformFromToken(token: string): Platform | undefined {
-    try {
-        const encoded = token.split(".")[1];
-        if (!encoded) return undefined;
-        const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
-        const payload = JSON.parse(
-            window.atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")),
-        );
-        return PLATFORM_BY_SURFACE[String(payload.surface)];
-    } catch {
-        return undefined;
-    }
-}
 
 interface StatusContent {
     title: string;
@@ -67,10 +35,7 @@ interface StatusContent {
  * @param platform The chat app they came from.
  * @returns The heading and explanation, or undefined while there is still a button.
  */
-export function statusContent(
-    status: ConnectStatus,
-    platform: Platform,
-): StatusContent | undefined {
+export function statusContent(status: ConnectStatus, platform: string): StatusContent | undefined {
     if (status === "connected") {
         return {
             title: "Account connected",
@@ -95,6 +60,8 @@ export function statusContent(
 export interface ConnectPageProps {
     /** The `?token=` query parameter, however your router hands it over. */
     token: string;
+    /** The `?platform=` query parameter: "slack", "teams" or "copilot". */
+    platform: string;
     /** Whether your own session is loading. */
     loading: boolean;
     /** Whether the visitor is signed in to your product. */
@@ -104,11 +71,21 @@ export interface ConnectPageProps {
 }
 
 /** Links the signed-in visitor's account to the chat identity that sent them here. */
-export function ConnectPage({ token, loading, isAuthenticated, signIn }: ConnectPageProps) {
+export function ConnectPage({
+    token,
+    platform,
+    loading,
+    isAuthenticated,
+    signIn,
+}: ConnectPageProps) {
     const [status, setStatus] = useState<ConnectStatus>("ready");
     const [submitting, setSubmitting] = useState(false);
     const signInStarted = useRef(false);
-    const platform = platformFromToken(token) ?? "Slack, Teams, or Copilot";
+    // A2A Net sends the app the visitor came from, so nothing here has to decode a
+    // token to print a noun. An old link that predates it names all three.
+    const app = platform
+        ? platform[0].toUpperCase() + platform.slice(1)
+        : "Slack, Teams, or Copilot";
 
     // A link carries a token, so the page must not be indexed and must not leak
     // it to whatever the visitor clicks next.
@@ -132,10 +109,10 @@ export function ConnectPage({ token, loading, isAuthenticated, signIn }: Connect
         if (status !== "ready" || !token || loading || isAuthenticated) return;
         if (signInStarted.current) return;
         signInStarted.current = true;
-        signIn(`/agent/connect?${new URLSearchParams({ token }).toString()}`).catch(() =>
+        signIn(`/agent/connect?${new URLSearchParams({ token, platform }).toString()}`).catch(() =>
             setStatus("failed"),
         );
-    }, [isAuthenticated, loading, signIn, status, token]);
+    }, [isAuthenticated, loading, platform, signIn, status, token]);
 
     const connect = async (): Promise<void> => {
         if (submitting) return;
@@ -157,7 +134,7 @@ export function ConnectPage({ token, loading, isAuthenticated, signIn }: Connect
         }
     };
 
-    const content = statusContent(status, platform);
+    const content = statusContent(status, app);
     if (content) {
         return (
             <main>
@@ -173,7 +150,7 @@ export function ConnectPage({ token, loading, isAuthenticated, signIn }: Connect
         return (
             <main>
                 <h1>This link has expired</h1>
-                <p>Return to {platform} and ask the agent for a new link</p>
+                <p>Return to {app} and ask the agent for a new link</p>
             </main>
         );
     }
@@ -194,7 +171,7 @@ export function ConnectPage({ token, loading, isAuthenticated, signIn }: Connect
     return (
         <main>
             <h1>Connect your account</h1>
-            <p>Connect your account to {platform}</p>
+            <p>Connect your account to {app}</p>
             {status === "failed" && <p>We could not connect the account. Please try again.</p>}
             <button type="button" onClick={() => void connect()} disabled={submitting}>
                 {submitting ? "Connecting…" : "Connect"}
