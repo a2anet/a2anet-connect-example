@@ -3,12 +3,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { handleConnectRequest, redeemLinkToken } from "../src/connect.js";
+import {
+    describeLinkToken,
+    handleConnectRequest,
+    handleDescribeRequest,
+    redeemLinkToken,
+} from "../src/connect.js";
 
 const originalFetch = globalThis.fetch;
 
-const respondWith = (status: number): void => {
-    globalThis.fetch = (async () => new Response(null, { status })) as unknown as typeof fetch;
+const respondWith = (status: number, body?: unknown): void => {
+    globalThis.fetch = (async () =>
+        new Response(body === undefined ? null : JSON.stringify(body), {
+            status,
+        })) as unknown as typeof fetch;
+};
+
+const DESCRIPTION = {
+    agentId: "agent-1",
+    agentName: "Bookings",
+    platform: "slack",
+    surface: "slack",
+    workspaceName: "Acme Corp",
+    platformUserName: "alice",
+    expiresAt: "2026-01-01T00:10:00.000Z",
 };
 
 const post = (body: unknown): Request =>
@@ -103,5 +121,74 @@ describe("handleConnectRequest", () => {
         respondWith(409);
         const handler = handleConnectRequest(authenticated);
         expect((await handler(post({ token: "token" }))).status).toBe(409);
+    });
+});
+
+describe("describeLinkToken", () => {
+    test("names the chat account the token would bind to", async () => {
+        respondWith(200, DESCRIPTION);
+        expect(await describeLinkToken("token")).toEqual({
+            agentName: "Bookings",
+            surface: "slack",
+            workspaceName: "Acme Corp",
+            platformUserName: "alice",
+        });
+    });
+
+    test("leaves out names the platform did not give", async () => {
+        respondWith(200, { agentName: "Bookings", surface: "teams" });
+        expect(await describeLinkToken("token")).toEqual({
+            agentName: "Bookings",
+            surface: "teams",
+            workspaceName: undefined,
+            platformUserName: undefined,
+        });
+    });
+
+    test.each([400, 404, 500])("has nothing to show when A2A Net answers %i", async (status) => {
+        respondWith(status);
+        expect(await describeLinkToken("token")).toBeNull();
+    });
+
+    test("has nothing to show when A2A Net is unreachable", async () => {
+        globalThis.fetch = (async () => {
+            throw new Error("network");
+        }) as unknown as typeof fetch;
+        expect(await describeLinkToken("token")).toBeNull();
+    });
+});
+
+describe("handleDescribeRequest", () => {
+    const authenticated = async (): Promise<string> => "customer-1";
+
+    test("refuses an unauthenticated caller before reaching A2A Net", async () => {
+        respondWith(200, DESCRIPTION);
+        const handler = handleDescribeRequest(async () => null);
+        expect((await handler(post({ token: "token" }))).status).toBe(401);
+    });
+
+    test("refuses a request with no token", async () => {
+        respondWith(200, DESCRIPTION);
+        const handler = handleDescribeRequest(authenticated);
+        expect((await handler(post({}))).status).toBe(400);
+    });
+
+    test("answers the description, and never the API key that fetched it", async () => {
+        respondWith(200, DESCRIPTION);
+        const handler = handleDescribeRequest(authenticated);
+        const response = await handler(post({ token: "token" }));
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({
+            agentName: "Bookings",
+            surface: "slack",
+            workspaceName: "Acme Corp",
+            platformUserName: "alice",
+        });
+    });
+
+    test("reports a token A2A Net will not describe as invalid", async () => {
+        respondWith(400);
+        const handler = handleDescribeRequest(authenticated);
+        expect((await handler(post({ token: "token" }))).status).toBe(400);
     });
 });

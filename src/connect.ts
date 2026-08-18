@@ -22,6 +22,19 @@ export type ConnectFailure = "invalid" | "used" | "unreachable";
 export type ConnectResult = { connected: true } | { connected: false; reason: ConnectFailure };
 
 /**
+ * Who a link token names, for the page to show before anyone clicks Connect.
+ *
+ * Absent names are normal: a platform only tells A2A Net what it will, and Teams
+ * will not name a tenant at all.
+ */
+export interface LinkDescription {
+    agentName: string;
+    surface: "slack" | "teams" | "copilot";
+    workspaceName?: string;
+    platformUserName?: string;
+}
+
+/**
  * Per-customer values the agent's tools resolve at run time.
  *
  * Use them to hand the agent this customer's own access to your API, so a run in
@@ -73,6 +86,42 @@ export async function redeemLinkToken(
     return { connected: false, reason: "unreachable" };
 }
 
+/**
+ * Asks A2A Net who a link token names, without redeeming it.
+ *
+ * Show what this returns. A link token is a bearer credential: whoever holds the
+ * URL can click Connect, so an attacker only has to get their own Connect link
+ * in front of somebody else — every request that follows is first-party, signed,
+ * and indistinguishable from the real thing. Naming the chat account the link
+ * would bind to is the one part of the flow the victim can recognise as wrong.
+ * @param linkToken The `?token=` the Connect button carried into the browser.
+ * @returns Who the token names, or null when it is expired, spent, or not yours.
+ */
+export async function describeLinkToken(linkToken: string): Promise<LinkDescription | null> {
+    let response: Response;
+    try {
+        response = await fetch(`${env("A2ANET_API_URL")}/customer-links/describe`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${env("A2ANET_API_KEY")}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ linkToken }),
+        });
+    } catch {
+        return null;
+    }
+    if (!response.ok) return null;
+
+    const body = (await response.json()) as LinkDescription;
+    return {
+        agentName: body.agentName,
+        surface: body.surface,
+        workspaceName: body.workspaceName,
+        platformUserName: body.platformUserName,
+    };
+}
+
 /** Resolves the signed-in user, or null when the request carries no session. */
 export type Authenticate = (request: Request) => Promise<string | null>;
 
@@ -116,5 +165,30 @@ export function handleConnectRequest(
         if (result.connected) return json({ connected: true }, 200);
 
         return json({ error: MESSAGE_BY_REASON[result.reason] }, STATUS_BY_REASON[result.reason]);
+    };
+}
+
+/**
+ * Builds the route handler behind the identity the page shows.
+ *
+ * Separate from the redeem handler because the page calls it first, on arrival,
+ * and because it changes nothing. Your API key stays on your server either way;
+ * this is the proxy that keeps it there.
+ * @param authenticate Your own session check, returning the customer id.
+ * @returns A handler to mount at `POST /agent/connect/describe`.
+ */
+export function handleDescribeRequest(
+    authenticate: Authenticate,
+): (request: Request) => Promise<Response> {
+    return async (request: Request): Promise<Response> => {
+        if (!(await authenticate(request))) return json({ error: "Unauthorized" }, 401);
+
+        const body = (await request.json().catch(() => ({}))) as { token?: string };
+        const linkToken = body.token?.trim();
+        if (!linkToken) return json({ error: "A connection token is required" }, 400);
+
+        const description = await describeLinkToken(linkToken);
+        if (!description) return json({ error: MESSAGE_BY_REASON.invalid }, 400);
+        return json(description, 200);
     };
 }
