@@ -8,7 +8,7 @@ app. Read `README.md` first for the flow.
 Copy `src/connect.ts` into wherever the app keeps its server code, next to its
 other routes.
 
-Mount `handleConnectRequest` at `POST /agent/connect`, passing the app's own
+Mount `handleConnectRequest` at `POST /connect`, passing the app's own
 session check as `authenticate`. It has to return the app's own identifier for the
 signed-in user — the id the app already uses in its own database — or `null` when
 the request carries no session.
@@ -24,6 +24,9 @@ Two things this endpoint must not do, because they are the whole security model:
   caller is; a body-supplied id lets anyone link a chat account to anyone
 - Do not expose the endpoint unauthenticated
 
+Mount `handlePreviewRequest` at `POST /connect/preview`. The page calls it first
+so it can name the chat account before anyone clicks Connect.
+
 ## 2. Add the environment variables
 
 `A2ANET_API_KEY` and `A2ANET_API_URL`, as described in `README.md`. Server-side
@@ -32,7 +35,7 @@ neither takes that prefix.
 
 ## 3. Add the page
 
-Copy `src/connect-page.tsx` in and route it at `/agent/connect`, so the endpoint
+Copy `src/connect-page.tsx` in and route it at `/connect`, so the endpoint
 and the page share a path and the URL is easy to say out loud.
 
 Wire its props to the app's own auth: `loading` and `isAuthenticated` from
@@ -49,13 +52,13 @@ restyle:
 - The `noindex,nofollow` and `no-referrer` meta tags. The URL carries a token
 - Sign-in starting on arrival rather than behind a second click
 
-If the page cannot post to `/agent/connect` with cookies alone (an auth SDK that
+If the page cannot post to `/connect` with cookies alone (an auth SDK that
 holds a bearer token), add the header to the `fetch` in `connect`.
 
 ## 4. Set the Customer Sign-In URL
 
 On the agent's Publish page at <https://app.a2anet.com>, in the last step of Slack
-or Teams setup, set `https://app.example.com/agent/connect`. It must be https.
+or Teams setup, set `https://app.example.com/connect`. It must be https.
 Until it is set, the agent runs as its owner rather than as your customers.
 
 ## 5. Check it

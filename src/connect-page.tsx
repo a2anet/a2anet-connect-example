@@ -7,7 +7,7 @@
  *
  * It reads `?token=`, makes sure the visitor is signed in to your product, asks
  * your server who the token names, and posts the token back to your own
- * `/agent/connect`. Everything it renders is one of five states, because those
+ * `/connect`. Everything it renders is one of five states, because those
  * are the only five things that can happen and each one needs a person to be
  * told something different.
  *
@@ -137,7 +137,7 @@ export function ConnectPage({
         if (status !== "ready" || !token || loading || isAuthenticated) return;
         if (signInStarted.current) return;
         signInStarted.current = true;
-        signIn(`/agent/connect?${new URLSearchParams({ token }).toString()}`).catch(() =>
+        signIn(`/connect?${new URLSearchParams({ token }).toString()}`).catch(() =>
             setStatus("failed"),
         );
     }, [isAuthenticated, loading, signIn, status, token]);
@@ -149,7 +149,7 @@ export function ConnectPage({
         let live = true;
         void (async () => {
             try {
-                const response = await fetch("/agent/connect/describe", {
+                const response = await fetch("/connect/preview", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ token }),
@@ -175,7 +175,7 @@ export function ConnectPage({
             // urlencoded, multipart, or plain text, so a server that requires
             // JSON cannot be driven by one — which is what stops another site
             // redeeming a link as whoever is signed in here.
-            const response = await fetch("/agent/connect", {
+            const response = await fetch("/connect", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ token }),

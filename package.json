@@ -2,7 +2,7 @@
     "name": "a2anet-connect-example",
     "version": "0.1.0",
     "private": true,
-    "description": "An example of the /agent/connect endpoint that links Slack and Teams users to your own customers",
+    "description": "An example of the /connect endpoint that links Slack and Teams users to your own customers",
     "type": "module",
     "scripts": {
         "check": "biome check .",

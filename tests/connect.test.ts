@@ -4,9 +4,9 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
-    describeLinkToken,
     handleConnectRequest,
-    handleDescribeRequest,
+    handlePreviewRequest,
+    previewLinkToken,
     redeemLinkToken,
 } from "../src/connect.js";
 
@@ -30,7 +30,7 @@ const DESCRIPTION = {
 };
 
 const post = (body: unknown): Request =>
-    new Request("https://example.com/agent/connect", {
+    new Request("https://example.com/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -124,10 +124,10 @@ describe("handleConnectRequest", () => {
     });
 });
 
-describe("describeLinkToken", () => {
+describe("previewLinkToken", () => {
     test("names the chat account the token would bind to", async () => {
         respondWith(200, DESCRIPTION);
-        expect(await describeLinkToken("token")).toEqual({
+        expect(await previewLinkToken("token")).toEqual({
             agentName: "Bookings",
             surface: "slack",
             workspaceName: "Acme Corp",
@@ -137,7 +137,7 @@ describe("describeLinkToken", () => {
 
     test("leaves out names the platform did not give", async () => {
         respondWith(200, { agentName: "Bookings", surface: "teams" });
-        expect(await describeLinkToken("token")).toEqual({
+        expect(await previewLinkToken("token")).toEqual({
             agentName: "Bookings",
             surface: "teams",
             workspaceName: undefined,
@@ -147,35 +147,35 @@ describe("describeLinkToken", () => {
 
     test.each([400, 404, 500])("has nothing to show when A2A Net answers %i", async (status) => {
         respondWith(status);
-        expect(await describeLinkToken("token")).toBeNull();
+        expect(await previewLinkToken("token")).toBeNull();
     });
 
     test("has nothing to show when A2A Net is unreachable", async () => {
         globalThis.fetch = (async () => {
             throw new Error("network");
         }) as unknown as typeof fetch;
-        expect(await describeLinkToken("token")).toBeNull();
+        expect(await previewLinkToken("token")).toBeNull();
     });
 });
 
-describe("handleDescribeRequest", () => {
+describe("handlePreviewRequest", () => {
     const authenticated = async (): Promise<string> => "customer-1";
 
     test("refuses an unauthenticated caller before reaching A2A Net", async () => {
         respondWith(200, DESCRIPTION);
-        const handler = handleDescribeRequest(async () => null);
+        const handler = handlePreviewRequest(async () => null);
         expect((await handler(post({ token: "token" }))).status).toBe(401);
     });
 
     test("refuses a request with no token", async () => {
         respondWith(200, DESCRIPTION);
-        const handler = handleDescribeRequest(authenticated);
+        const handler = handlePreviewRequest(authenticated);
         expect((await handler(post({}))).status).toBe(400);
     });
 
     test("answers the description, and never the API key that fetched it", async () => {
         respondWith(200, DESCRIPTION);
-        const handler = handleDescribeRequest(authenticated);
+        const handler = handlePreviewRequest(authenticated);
         const response = await handler(post({ token: "token" }));
         expect(response.status).toBe(200);
         expect(await response.json()).toEqual({
@@ -186,9 +186,9 @@ describe("handleDescribeRequest", () => {
         });
     });
 
-    test("reports a token A2A Net will not describe as invalid", async () => {
+    test("reports a token A2A Net will not preview as invalid", async () => {
         respondWith(400);
-        const handler = handleDescribeRequest(authenticated);
+        const handler = handlePreviewRequest(authenticated);
         expect((await handler(post({ token: "token" }))).status).toBe(400);
     });
 });

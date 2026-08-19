@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * `POST /agent/connect` — the endpoint that turns a Slack or Teams user into one
+ * `POST /connect` — the endpoint that turns a Slack or Teams user into one
  * of your customers.
  *
  * The link token arrives in the browser, from the Connect button A2A Net posted
@@ -97,10 +97,10 @@ export async function redeemLinkToken(
  * @param linkToken The `?token=` the Connect button carried into the browser.
  * @returns Who the token names, or null when it is expired, spent, or not yours.
  */
-export async function describeLinkToken(linkToken: string): Promise<LinkDescription | null> {
+export async function previewLinkToken(linkToken: string): Promise<LinkDescription | null> {
     let response: Response;
     try {
-        response = await fetch(`${env("A2ANET_API_URL")}/customer-links/describe`, {
+        response = await fetch(`${env("A2ANET_API_URL")}/customer-links/preview`, {
             method: "POST",
             headers: {
                 Authorization: `Bearer ${env("A2ANET_API_KEY")}`,
@@ -146,7 +146,7 @@ const json = (body: unknown, status: number): Response =>
 /**
  * Builds the route handler.
  * @param authenticate Your own session check, returning the customer id.
- * @returns A handler to mount at `POST /agent/connect`.
+ * @returns A handler to mount at `POST /connect`.
  */
 export function handleConnectRequest(
     authenticate: Authenticate,
@@ -175,9 +175,9 @@ export function handleConnectRequest(
  * and because it changes nothing. Your API key stays on your server either way;
  * this is the proxy that keeps it there.
  * @param authenticate Your own session check, returning the customer id.
- * @returns A handler to mount at `POST /agent/connect/describe`.
+ * @returns A handler to mount at `POST /connect/preview`.
  */
-export function handleDescribeRequest(
+export function handlePreviewRequest(
     authenticate: Authenticate,
 ): (request: Request) => Promise<Response> {
     return async (request: Request): Promise<Response> => {
@@ -187,7 +187,7 @@ export function handleDescribeRequest(
         const linkToken = body.token?.trim();
         if (!linkToken) return json({ error: "A connection token is required" }, 400);
 
-        const description = await describeLinkToken(linkToken);
+        const description = await previewLinkToken(linkToken);
         if (!description) return json({ error: MESSAGE_BY_REASON.invalid }, 400);
         return json(description, 200);
     };

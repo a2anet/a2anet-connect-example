@@ -1,6 +1,6 @@
 # A2A Net Connect Example
 
-This is an example implementation of the `/agent/connect` endpoint, which allows
+This is an example implementation of the `/connect` endpoint, which allows
 you to authenticate Slack, Teams, and Copilot users with your product.
 
 Without a Customer Sign-In URL an agent runs as its owner. This endpoint is what
@@ -13,7 +13,7 @@ makes it run as each of your customers instead.
 2. The button opens your Customer Sign-In URL with a ten-minute, single-use token
    as `?token=`, and the app they came from as `?platform=`
 3. Your page signs the visitor in the way your product already does
-4. Your backend asks `POST /api/v1/customer-links/describe` who the token names,
+4. Your backend asks `POST /api/v1/customer-links/preview` who the token names,
    and your page shows it next to who they are signed in as
 5. Your backend `POST`s the token and your own identifier for that user to
    `POST /api/v1/customer-links`, with your A2A Net API key
@@ -26,7 +26,7 @@ A2A Net never sees the customer's credentials.
 
 | File                   | What it is                                                 |
 | ---------------------- | ---------------------------------------------------------- |
-| `src/connect.ts`       | `POST /agent/connect` and its describe proxy               |
+| `src/connect.ts`       | `POST /connect` and its preview proxy                      |
 | `src/connect-page.tsx` | The page the Connect button opens. Five states, no styling |
 
 ## Environment
@@ -42,10 +42,10 @@ credential:
 ## Your Customer Sign-In URL
 
 Set it on the agent's Publish page, in the last step of Slack or Teams setup.
-Serving the page below at `/agent/connect` makes it:
+Serving the page below at `/connect` makes it:
 
 ```
-https://app.example.com/agent/connect
+https://app.example.com/connect
 ```
 
 ## What can go wrong
@@ -69,13 +69,13 @@ which the attacker's messages run as them. Every request in that sequence is
 first-party, correctly signed, and impossible to tell from the real thing at the
 server. The only place it can be caught is on the page, by a person reading
 "Connect your account (you@corp.com) to Slack (@attacker in Some Other Corp)".
-That is what `describe` is for.
+That is what `preview` is for.
 
 **Take a JSON body, not a form post.** An HTML form can only send urlencoded,
 multipart, or plain text bodies, so a server that requires `application/json`
 cannot be driven by a form on someone else's site. Combined with a `SameSite=Lax`
 session cookie, that is what stops another origin redeeming a link as whoever is
-signed in — no CSRF token needed. If you change `/agent/connect` to accept a form
+signed in — no CSRF token needed. If you change `/connect` to accept a form
 post, add one.
 
 ## Running the checks
